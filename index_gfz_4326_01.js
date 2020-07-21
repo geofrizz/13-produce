@@ -13,7 +13,7 @@ const winston = require('winston')
 const DailyRotateFile = require('winston-daily-rotate-file')
 //const turf = require('@turf/turf')
 //const projection = require('@turf/projection')
-const modify = require('./modify.js')
+const modify = require('./modify_gfz_4326_01.js')
 
 // config constants
 const host = config.get('host')
