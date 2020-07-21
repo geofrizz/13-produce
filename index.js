@@ -13,11 +13,11 @@ const winston = require('winston')
 const DailyRotateFile = require('winston-daily-rotate-file')
 //const turf = require('@turf/turf')
 //const projection = require('@turf/projection')
-const modify = require('./modify.js')
+const modify = require('./modify_gfz_4326_01.js')
 
 // config constants
 const host = config.get('host')
-const port = config.get('port') 
+const port = config.get('port')
 const unixUser = config.get('unixUser')
 const wtpsThreshold = config.get('wtpsThreshold')
 const monitorPeriod = config.get('monitorPeriod')
@@ -36,7 +36,7 @@ Spinner.setDefaultSpinnerString(spinnerString)
 winston.configure({
   level: 'silly',
   format: winston.format.simple(),
-  transports: [ 
+  transports: [
     new DailyRotateFile({
       filename: '13-produce-%DATE%.log',
       datePattern: 'YYYY-MM-DD',
@@ -97,8 +97,10 @@ const getScores = async () => {
   return new Promise(async (resolve, reject) => {
     // identify modules to update
     let oldestDate = new Date()
-    for (let x = 0; x < 2 ** Z; x++) {
-      for (let y = 0; y < 2 ** Z; y++) {
+    //for (let x = 0; x < 2 ** Z; x++) {
+      //for (let y = 0; y < 2 ** Z; y++) {
+    for (let x = 35; x <= 38; x++) {
+      for (let y = 30; y <= 33; y++) {
         const moduleKey = `${Z}-${x}-${y}`
         const path = `${mbtilesDir}/${moduleKey}.mbtiles`
         let mtime = defaultDate
@@ -113,7 +115,7 @@ const getScores = async () => {
           mtime: mtime,
           size: size,
          score: 0
-       }
+        }
       }
     }
 
@@ -143,7 +145,7 @@ const noPressureWrite = (downstream, f) => {
     if (downstream.write(`\x1e${JSON.stringify(f)}\n`)) {
       res()
     } else {
-      downstream.once('drain', () => { 
+      downstream.once('drain', () => {
         res()
       })
     }
@@ -188,7 +190,7 @@ const fetch = (client, database, table, downstream) => {
 const dumpAndModify = async (bbox, relation, downstream, moduleKey) => {
   return new Promise((resolve, reject) => {
     const startTime = new Date()
-    const [database, table] = relation.split('::')
+    const [database, schema, table] = relation.split('::')
     if (!pools[database]) {
       pools[database] = new Pool({
         host: host,
@@ -201,14 +203,14 @@ const dumpAndModify = async (bbox, relation, downstream, moduleKey) => {
     pools[database].connect(async (err, client, release) => {
       if (err) throw err
       let sql = `
-SELECT column_name FROM information_schema.columns 
-  WHERE table_name='${table}' ORDER BY ordinal_position`
+SELECT column_name FROM information_schema.columns
+  WHERE table_name='${table}' AND schema_name='${schema}' ORDER BY ordinal_position`
       let cols = await client.query(sql)
       cols = cols.rows.map(r => r.column_name).filter(r => r !== 'geom')
       cols = cols.filter(v => !propertyBlacklist.includes(v))
       // ST_AsGeoJSON(ST_Intersection(ST_MakeValid(${table}.geom), envelope.geom))
 //      cols.push(`ST_AsGeoJSON(${table}.geom)`)
-      cols.push(`ST_AsGeoJSON(ST_Transform(${table}.geom, 4326))`)
+      cols.push(`ST_AsGeoJSON(${schema}.${table}.geom)`)
       await client.query(`BEGIN`)
 ////for EPSG3857 only
 //    let minpt = new Array(bbox[0], bbox[1])
@@ -218,16 +220,20 @@ SELECT column_name FROM information_schema.columns
 //    let tmaxpt = turf.point(maxpt)
 //    let mmaxpt = projection.toMercator(tmaxpt)
 //    let mbbox = new Array(mminpt.geometry.coordinates[0],mminpt.geometry.coordinates[1],mmaxpt.geometry.coordinates[0],mmaxpt.geometry.coordinates[1],3857)
-      sql = `
-DECLARE cur CURSOR FOR 
-WITH 
+
 //  envelope AS (SELECT ST_MakeEnvelope(${mbbox.join(', ')}) AS geom)
-  envelope AS (SELECT ST_Transform(ST_MakeEnvelope(${bbox.join(', ')}, 4326), 3857) AS geom)
-SELECT 
+
+      sql = `
+DECLARE cur CURSOR FOR
+WITH
+  envelope AS (SELECT ST_MakeEnvelope(${bbox.join(', ')}, 4326) AS geom)
+SELECT
   ${cols.toString()}
-FROM ${table}
-JOIN envelope ON ${table}.geom && envelope.geom
-` 
+FROM ${schema}.${table}
+JOIN envelope ON ${schema}.${table}.geom && envelope.geom
+WHERE ST_GeoHash(${schema}.${table}.geom,2) = ST_GeoHash(envelope.geom,2)
+`
+      console.log(`${sql}`)
       cols = await client.query(sql)
       try {
         while (await fetch(client, database, table, downstream) !== 0) {}
@@ -306,17 +312,17 @@ const queue = new Queue(async (t, cb) => {
     }
   }
   tippecanoe.stdin.end()
-}, { 
-  concurrent: config.get('concurrent'), 
+}, {
+  concurrent: config.get('concurrent'),
   maxRetries: config.get('maxRetries'),
-  retryDelay: config.get('retryDelay') 
+  retryDelay: config.get('retryDelay')
 })
 
 const queueTasks = () => {
   let moduleKeys = Object.keys(modules)
   moduleKeys.sort((a, b) => modules[b].score - modules[a].score)
-//  for (let moduleKey of moduleKeys) {
-  for (let moduleKey of ['6-37-31', '6-38-31', '6-37-32', '6-38-32']) { //// TEMP
+  for (let moduleKey of moduleKeys) {
+//  for (let moduleKey of ['6-37-31', '6-38-31', '6-37-32', '6-38-32']) { //// TEMP
     //if (modules[moduleKey].score > 0) {
       queue.push({
         moduleKey: moduleKey
