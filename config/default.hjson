@@ -7,19 +7,19 @@
   concurrent: 1
   maxRetries: 5
   retryDelay: 5000
-  port: 5432
+  port: 5433
   dbUser: postgress
   dbPassword: ABCDEFG
   relations: [
-    osm_base::osm_planet_landuse_natural_large
-    osm_base::osm_planet_landuse_natural_medium
-    osm_base::osm_planet_transport_areas
-    osm_base::osm_planet_landuse_urban
-    osm_base::osm_planet_major_roads
-    osm_base::osm_planet_minor_roads
+    sde_pg_3::osm_unvt::osm_planet_landuse_natural_large
+    sde_pg_3::osm_unvt::osm_planet_landuse_natural_medium
+    sde_pg_3::osm_unvt::osm_planet_transport_areas
+    sde_pg_3::osm_unvt::osm_planet_landuse_urban
+    sde_pg_3::osm_unvt::osm_planet_major_roads
+    sde_pg_3::osm_unvt::osm_planet_minor_roads
   ]
   defaultDate: 2020-06-20
-  mbtilesDir: /data/mbtiles/osm_tile
+  mbtilesDir: /data/zlevel_6_03/mbtiles/osm_tile
   propertyBlacklist: [
     description
     fid
@@ -32,5 +32,5 @@
     pseudoarea
   ]
   spinnerString: 18
-  fetchSize: 100
+  fetchSize: 400
 }
